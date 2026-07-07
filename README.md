@@ -14,7 +14,7 @@ There is exactly one trick, applied twice:
 - The `<Dial>` to **B** uses your Twilio number as `callerId`, so B sees the masked number too.
 
 The mapping of which two real numbers are talking lives only in your backend
-(`sessions.js`). It is never sent to either party.
+(the `sessions` table). It is never sent to either party.
 
 ## Flow
 
@@ -22,24 +22,45 @@ The mapping of which two real numbers are talking lives only in your backend
 POST /connect ───────► call A (from = Twilio #)
                           │ A answers
                           ▼
-                     GET/POST /bridge
+                     POST /webhooks/bridge
                           │  <Dial callerId=Twilio # record=record-from-answer-dual> → call B
                           ▼
                    A and B talk, masked, recorded (dual channel)
                           │ call ends
                           ▼
-                     /recording  (RecordingSid) ──► create Conversation Intelligence transcript
+                     /webhooks/recording  (RecordingSid) ──► create Conversation Intelligence transcript
                           │ transcript finishes processing (async)
                           ▼
-                     /intelligence  ──► fetch sentences → final speaker-labeled transcript
+                     /webhooks/intelligence  ──► fetch sentences → final speaker-labeled transcript
 ```
 
-Webhooks Twilio calls:
-- `/bridge` – runs when A answers; dials B and records both legs in dual channel.
-- `/dial-status` – runs when the B leg ends; handles "B didn't answer".
-- `/call-status` – lifecycle of the A call; handles "A didn't answer".
-- `/recording` – runs when the recording is ready; kicks off post-call transcription.
-- `/intelligence` – runs when Conversation Intelligence finishes; delivers the transcript.
+Webhooks Twilio calls (all namespaced under `/webhooks`):
+- `/webhooks/bridge` – runs when A answers; dials B and records both legs in dual channel.
+- `/webhooks/dial-status` – runs when the B leg ends; handles "B didn't answer".
+- `/webhooks/call-status` – lifecycle of the A call; handles "A didn't answer".
+- `/webhooks/recording` – runs when the recording is ready; kicks off post-call transcription.
+- `/webhooks/intelligence` – runs when Conversation Intelligence finishes; delivers the transcript.
+
+## Project structure
+
+```
+src/
+  config/         Typed, validated environment configuration
+  db/             Sequelize connection + lifecycle (init/close)
+  models/         Sequelize models and their associations
+  repositories/   Data-access layer (one module per entity)
+  services/       Business logic (Twilio wrapper, call orchestration, transcripts)
+  controllers/    Thin HTTP request handlers
+  routes/         Route definitions (public API + /webhooks)
+  middleware/     Twilio signature check, error handling, async wrapper
+  utils/          Structured logger and error types
+  app.ts          Express app factory (importable by tests)
+  server.ts       Entrypoint: init DB, start server, graceful shutdown
+```
+
+Request flow: **route → middleware → controller → service → repository → model**.
+HTTP concerns stay in controllers; telephony in the Twilio service; persistence in
+repositories. See `DATABASE_SCHEMA.md` for the data model.
 
 ## Setup
 
@@ -51,7 +72,7 @@ cp .env.example .env      # then fill in your values
 ```
 
 Fill in `.env`:
-- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` – from the Twilio console.
+- `TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET` – from the Twilio console (Account → API keys & tokens).
 - `TWILIO_NUMBER` – the single number both parties will see (E.164, e.g. `+15551234567`).
 - `BASE_URL` – the public https URL Twilio can reach this server at (see below).
 - `INTELLIGENCE_SERVICE_SID` – your Conversation Intelligence Service SID (`GA...`).
@@ -60,7 +81,7 @@ Fill in `.env`:
 
 1. In the Twilio Console, go to **Conversational Intelligence → Services** and create a Service.
 2. Copy its **Service SID** (`GA...`) into `INTELLIGENCE_SERVICE_SID` in `.env`.
-3. Set that Service's **webhook URL** to `<BASE_URL>/intelligence` so finished
+3. Set that Service's **webhook URL** to `<BASE_URL>/webhooks/intelligence` so finished
    transcripts are delivered to this app.
 
 Channels: the recording is dual-channel, with **channel 1 = party A** (the leg you
@@ -109,8 +130,9 @@ curl http://localhost:3000/sessions/<sessionId>
 
 ## Notes for production
 
-- **Session store:** `sessions.js` is in-memory only. Swap it for Redis/Postgres/etc.
-  so state survives restarts and works across multiple instances.
+- **Session store:** state persists in SQLite (`call-history.db`) via Sequelize. For a
+  multi-instance deployment, point the connection in `src/db/index.ts` at Postgres/MySQL
+  and replace `sync({ alter: true })` with a proper migration workflow.
 - **Signature validation:** set `VALIDATE_TWILIO_REQUESTS=true` to reject any webhook
   not signed by Twilio. `BASE_URL` must exactly match the public URL Twilio hits.
 - **Voicemail:** set `USE_MACHINE_DETECTION=true` so that if A's voicemail answers,

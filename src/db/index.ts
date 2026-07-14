@@ -17,14 +17,19 @@ export const sequelize = new Sequelize({
 
 export async function initializeDatabase(): Promise<void> {
   try {
+    logger.info("Initializing SQLite database...", { file: "./call-history.db" });
     await sequelize.authenticate();
-    logger.info("Database connection established.");
-    // NOTE: `alter: true` is convenient for development. In production, replace this
-    // with a proper migration workflow (e.g. umzug / sequelize-cli).
-    await sequelize.sync({ alter: true });
-    logger.info("Database schema synced.");
+    logger.info("✓ Database connection established.", { dialect: "sqlite", storage: "./call-history.db" });
+    // NOTE: `alter: true` is unreliable on SQLite — it rebuilds tables via a
+    // copy-into-backup dance that breaks on ENUM columns and FK relationships, and
+    // any interruption leaves an orphaned `*_backup` table that wedges every
+    // subsequent boot. Use plain `sync()` (create-if-missing) in dev and delete
+    // `call-history.db` after a model change. For real schema evolution, adopt a
+    // migration workflow (e.g. umzug / sequelize-cli).
+    await sequelize.sync();
+    logger.info("✓ Database schema synced.");
   } catch (error) {
-    logger.error("Failed to initialize database.", { error: (error as Error).message });
+    logger.error("Failed to initialize database.", { error });
     process.exit(1);
   }
 }

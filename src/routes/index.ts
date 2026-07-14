@@ -14,4 +14,4 @@ export const router = Router();
 router.use(healthRouter);
 router.use(callRouter);
 router.use(sessionRouter);
-router.use(webhookRouter);
+router.use("/webhooks", webhookRouter);

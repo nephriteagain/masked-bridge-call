@@ -12,10 +12,11 @@ import { logger } from "./utils/logger.js";
  */
 async function start(): Promise<void> {
   await initializeDatabase();
+  logger.info("Database ready.");
 
   const app = createApp();
   const server = app.listen(config.port, () => {
-    logger.info(`Listening on http://localhost:${config.port}`, { env: config.env });
+    logger.info(`✓ Server listening on http://localhost:${config.port}`, { env: config.env });
     logger.info(`Webhooks expect to be reachable at ${config.baseUrl}`);
     if (!config.validateTwilioRequests) {
       logger.warn("Twilio signature validation is OFF (set VALIDATE_TWILIO_REQUESTS=true for prod).");

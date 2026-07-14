@@ -7,3 +7,5 @@ export * as sessionRepository from "./session.repository.js";
 export * as callRepository from "./call.repository.js";
 export * as recordingRepository from "./recording.repository.js";
 export * as transcriptRepository from "./transcript.repository.js";
+export * as eventRepository from "./event.repository.js";
+export * as notificationRepository from "./notification.repository.js";

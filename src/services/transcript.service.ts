@@ -3,6 +3,8 @@ import {
   sessionRepository,
   recordingRepository,
   transcriptRepository,
+  eventRepository,
+  notificationRepository,
 } from "../repositories/index.js";
 import type { CiTranscriptLine } from "../models/index.js";
 import { logger } from "../utils/logger.js";
@@ -17,6 +19,20 @@ import {
  * the speaker-labeled transcript and store it against the session.
  */
 
+/** Append an activity-log entry, best-effort (must never fail the transcript flow). */
+async function recordEvent(
+  sessionId: string,
+  type: string,
+  message: string,
+  metadata: Record<string, unknown> = {}
+): Promise<void> {
+  try {
+    await eventRepository.recordEvent({ sessionId, type, party: "system", message, metadata });
+  } catch (err) {
+    logger.warn("Failed to record event.", { sessionId, type, error: (err as Error).message });
+  }
+}
+
 /**
  * The dual-channel recording is ready. Persist it and kick off transcription.
  * Safe to call before responding to Twilio; runs fire-and-forget after the ack.
@@ -27,6 +43,7 @@ export async function handleRecordingReady(
 ): Promise<void> {
   await sessionRepository.updateSession(sessionId, { recordingSid });
   await recordingRepository.createRecording({ sessionId, recordingSid });
+  await recordEvent(sessionId, "recording_ready", "Call recording is ready.", { recordingSid });
   logger.info("Recording ready.", { sessionId, recordingSid });
 
   if (!config.twilio.intelligenceServiceSid) {
@@ -40,6 +57,9 @@ export async function handleRecordingReady(
     const transcript = await createTranscript({ customerKey: sessionId, recordingSid });
     await sessionRepository.updateSession(sessionId, { transcriptSid: transcript.sid });
     await transcriptRepository.createTranscript({ sessionId, transcriptSid: transcript.sid });
+    await recordEvent(sessionId, "transcript_requested", "Transcript requested — processing.", {
+      transcriptSid: transcript.sid,
+    });
     logger.info("Transcript requested (processing async).", {
       sessionId,
       transcriptSid: transcript.sid,
@@ -73,6 +93,16 @@ export async function handleTranscriptComplete(
       await transcriptRepository.updateTranscript(transcriptSid, {
         status: "completed",
         sentences: sentences as unknown as Record<string, unknown>[],
+      });
+      await recordEvent(sessionId, "transcript_ready", "Transcript finished processing.", {
+        transcriptSid,
+      });
+      // In-app notification so the provider knows to check the session details.
+      await notificationRepository.createNotification({
+        sessionId,
+        type: "transcript_ready",
+        title: "Transcript ready",
+        body: "Your Call Connect transcript has finished processing. Open the session to review it.",
       });
     }
 

@@ -6,8 +6,11 @@ export type SessionStatus =
   | "initiated"
   | "ringing-a"
   | "bridging"
+  | "connected"
   | "completed"
-  | "failed";
+  | "failed"
+  | "canceled"
+  | "declined";
 
 export interface CiTranscriptLine {
   speaker: "A" | "B";
@@ -24,6 +27,9 @@ export class Session extends Model {
   declare recordingSid: string | null;
   declare transcriptSid: string | null;
   declare ciTranscript: CiTranscriptLine[];
+  declare connectedAt: Date | null;
+  declare endedAt: Date | null;
+  declare endReason: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -46,7 +52,16 @@ Session.init(
       comment: "Real phone number of Party B (never exposed to Party A)",
     },
     status: {
-      type: DataTypes.ENUM("initiated", "ringing-a", "bridging", "completed", "failed"),
+      type: DataTypes.ENUM(
+        "initiated",
+        "ringing-a",
+        "bridging",
+        "connected",
+        "completed",
+        "failed",
+        "canceled",
+        "declined"
+      ),
       defaultValue: "initiated",
       allowNull: false,
     },
@@ -69,6 +84,22 @@ Session.init(
       type: DataTypes.JSON,
       defaultValue: [],
       comment: "Post-call transcript with speaker labels and confidence scores",
+    },
+    connectedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "When BOTH parties were connected (basis for the live call timer)",
+    },
+    endedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "When the call reached a terminal state",
+    },
+    endReason: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment:
+        "Why the call ended: completed | client_declined | provider_canceled | provider_no_answer | failed",
     },
     createdAt: {
       type: DataTypes.DATE,

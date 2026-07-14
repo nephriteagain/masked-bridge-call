@@ -10,13 +10,16 @@ Stores the core pairing and state of each call connection between Party A and Pa
 | Column | Type | Null | Default | Description |
 |--------|------|------|---------|-------------|
 | id | UUID | NO | UUIDV4 | Primary key, session identifier |
-| partyA | STRING | NO | - | Real phone number of Party A (never exposed to Party B) |
-| partyB | STRING | NO | - | Real phone number of Party B (never exposed to Party A) |
-| status | ENUM | NO | initiated | Session state: initiated, ringing-a, bridging, completed, failed |
+| partyA | STRING | NO | - | Real phone number of Party A / the provider (never exposed to the client) |
+| partyB | STRING | NO | - | Real phone number of Party B / the client (never exposed to the provider) |
+| status | ENUM | NO | initiated | Session state: initiated, ringing-a, bridging, connected, completed, failed, canceled, declined |
 | callSid | STRING | YES | NULL | Twilio Call SID for initial call to Party A |
 | recordingSid | STRING | YES | NULL | Twilio Recording SID for dual-channel recording |
 | transcriptSid | STRING | YES | NULL | Twilio Conversation Intelligence Transcript SID |
 | ciTranscript | JSON | NO | [] | Post-call speaker-labeled transcript with confidence scores |
+| connectedAt | DATE | YES | NULL | When BOTH parties were connected (basis for the live call timer) |
+| endedAt | DATE | YES | NULL | When the call reached a terminal state |
+| endReason | STRING | YES | NULL | completed \| client_declined \| provider_canceled \| provider_no_answer \| provider_voicemail \| failed |
 | createdAt | DATE | NO | NOW | Timestamp when session was created |
 | updatedAt | DATE | NO | NOW | Timestamp of last update |
 
@@ -71,17 +74,53 @@ Stores Conversation Intelligence transcription metadata and results.
 
 **Indexes**: transcriptSid (unique)
 
+### `events`
+Append-only, timestamped activity log for a session — every meaningful step of the
+Call Connect flow (consent, heads-up text, ringing, connected, declined, canceled,
+ended, transcript ready, …). Powers the provider's activity-log view. Phone-side only
+in this POC; the parent app would also append video events here.
+
+| Column | Type | Null | Default | Description |
+|--------|------|------|---------|-------------|
+| id | UUID | NO | UUIDV4 | Primary key |
+| sessionId | UUID | NO | - | Foreign key to sessions table |
+| type | STRING | NO | - | Event type, e.g. consent_acknowledged, client_answered, call_ended |
+| party | ENUM(provider, client, system) | YES | NULL | Which party the event concerns |
+| message | STRING | YES | NULL | Human-readable description for display |
+| metadata | JSON | NO | {} | Arbitrary structured detail (callSid, dialStatus, …) |
+| createdAt | DATE | NO | NOW | Timestamp of the event |
+| updatedAt | DATE | NO | NOW | Timestamp of last update |
+
+### `notifications`
+In-app provider notifications, created out-of-band (e.g. when a post-call transcript
+finishes) and polled by the UI.
+
+| Column | Type | Null | Default | Description |
+|--------|------|------|---------|-------------|
+| id | UUID | NO | UUIDV4 | Primary key |
+| sessionId | UUID | NO | - | Foreign key to sessions table |
+| type | ENUM | NO | - | Notification type (currently transcript_ready) |
+| title | STRING | NO | - | Short headline |
+| body | STRING | NO | - | Notification body |
+| read | BOOLEAN | NO | false | Whether the provider has seen it |
+| createdAt | DATE | NO | NOW | Timestamp when created |
+| updatedAt | DATE | NO | NOW | Timestamp of last update |
+
 ## Relationships
 
 ```
 Session (1) ──┬─── (N) Call
               ├─── (1) Recording
-              └─── (1) Transcript
+              ├─── (1) Transcript
+              ├─── (N) Event
+              └─── (N) Notification
 ```
 
 - **Session → Calls**: One session has many call events (cascading delete)
 - **Session → Recording**: One session has one recording (cascading delete)
 - **Session → Transcript**: One session has one transcript (cascading delete)
+- **Session → Events**: One session has many activity-log events (cascading delete)
+- **Session → Notifications**: One session has many notifications (cascading delete)
 
 ## Database File
 

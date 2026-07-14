@@ -20,6 +20,10 @@ export function createApp(): Express {
     next();
   });
 
+  // Provider test UI (single static page). Served at "/", so it takes precedence
+  // over the JSON liveness route; use GET /health for the liveness check.
+  app.use(express.static("public"));
+
   app.use(router);
 
   // 404 + centralized error handling. Must be registered last.

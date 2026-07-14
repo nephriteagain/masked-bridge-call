@@ -14,6 +14,7 @@ export const webhookRouter = Router();
 webhookRouter.use(verifyTwilioSignature);
 
 webhookRouter.post("/bridge", asyncHandler(webhookController.bridge));
+webhookRouter.post("/party-b-status", asyncHandler(webhookController.partyBStatus));
 webhookRouter.post("/dial-status", asyncHandler(webhookController.dialStatus));
 webhookRouter.post("/call-status", asyncHandler(webhookController.callStatus));
 webhookRouter.post("/recording", asyncHandler(webhookController.recording));

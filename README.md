@@ -36,7 +36,9 @@ POST /connect ───────► call A (from = Twilio #)
 
 Webhooks Twilio calls (all namespaced under `/webhooks`):
 - `/webhooks/bridge` – runs when A answers; dials B and records both legs in dual channel.
-- `/webhooks/dial-status` – runs when the B leg ends; handles "B didn't answer".
+- `/webhooks/party-b-status` – per-leg B lifecycle (ringing/answered); drives the live
+  "which party connected" status and the "both connected" timer.
+- `/webhooks/dial-status` – runs when the B leg ends; handles "B didn't answer"/declined.
 - `/webhooks/call-status` – lifecycle of the A call; handles "A didn't answer".
 - `/webhooks/recording` – runs when the recording is ready; kicks off post-call transcription.
 - `/webhooks/intelligence` – runs when Conversation Intelligence finishes; delivers the transcript.
@@ -109,18 +111,59 @@ ngrok http 3000
 Copy the `https://...ngrok-free.app` URL ngrok prints into `BASE_URL` in `.env`,
 then restart `npm start` so it picks up the new value.
 
-## Try it
+## Provider "Call Connect" flow
+
+This POC exercises the provider-facing Call Connect user stories. **Party A is the
+provider** (the person calling); **party B is the client**. `POST /connect` sends the
+heads-up text (stub) and places the call in one step:
 
 ```bash
 curl -X POST http://localhost:3000/connect \
   -H "Content-Type: application/json" \
-  -d '{"partyA":"+1XXXXXXXXXX","partyB":"+1YYYYYYYYYY"}'
+  -d '{"partyA":"+1PROVIDER","partyB":"+1CLIENT"}'
 # -> { "sessionId": "...", "callSid": "...", "status": "ringing-a" }
 ```
 
-Your phone (A) rings; answer it; B is then dialed; both of you see only the Twilio
-number. The call is recorded in dual channel. A short while after you hang up
-(transcription runs asynchronously), read the result back:
+Your phone (A) rings; answer it; the client (B) is then dialed; both of you see only
+the Twilio number. While it connects, poll the live status:
+
+```bash
+curl http://localhost:3000/sessions/<sessionId>/status
+# -> { phase, message, parties:{ provider, client }, connectedAt, durationSeconds, ... }
+```
+
+### Provider endpoints (all JSON)
+
+| Method + path | Story | Purpose |
+|---|---|---|
+| `POST /connect` | 1,3 | Create session, send heads-up text (stub), and place the call. |
+| `GET /sessions/:id/status` | 4,5,7,8 | Live `phase`, per-party state, and the call timer (`durationSeconds`). |
+| `POST /sessions/:id/cancel` | 6,13 | Cancel connecting / leave in-progress call. Needs `{confirm:true}` (409 otherwise). |
+| `GET /sessions/:id/summary` | 9 | End-of-call summary + `documented` (recorded/transcribed) flags. |
+| `GET /sessions/:id/events` | 12 | Timestamped activity log of every phone event. |
+| `GET /notifications` | 10 | In-app notifications (e.g. transcript ready); `POST /notifications/:id/read`. |
+| `GET /sessions/:id` | 11 | Session + post-call speaker-labeled `ciTranscript`. |
+
+`phase` progresses: `contacting_provider → contacting_client → connected → ended`,
+with terminal branches `client_declined` (client pressed decline / busy), `canceled`
+(provider canceled), and `failed`. (The consent gate was dropped as unnecessary for a POC.)
+
+**Out of scope here** (the parent app owns them): the real heads-up SMS (a function
+call there — stubbed to a logged event), and the video half of the stories (video
+transcript merge, "rejoin video"). Leaving the phone call *is* implemented via cancel.
+
+## Provider test UI
+
+Open **http://localhost:3000/** in a browser for a simple provider "session screen":
+a mock video strip, a **Contact client** button, the consent modal, live per-party
+status + call timer, a cancel/leave confirmation, the decline banner, the end-of-call
+summary, the transcript view, a notification bell, and the live activity log. It is a
+static page (`public/index.html`) that polls the endpoints above — no build step.
+(`GET /health` remains the JSON liveness check.)
+
+## Try it via API
+
+After the call ends, transcription runs asynchronously; read the result back:
 
 ```bash
 curl http://localhost:3000/sessions/<sessionId>

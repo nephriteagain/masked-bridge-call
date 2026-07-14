@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Call Connect — Session</title>
+  <style>
+    :root {
+      --bg: #0f1420;
+      --panel: #1a2130;
+      --panel-2: #222b3d;
+      --line: #2c3750;
+      --text: #e7ecf5;
+      --muted: #93a0b8;
+      --accent: #4f8cff;
+      --accent-press: #3a6fd6;
+      --green: #3ddc97;
+      --amber: #ffc857;
+      --red: #ff6b6b;
+      --gray: #6b7688;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 70% -10%, #16203a 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 24px 20px 64px; }
+    header.top {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .2px; }
+    .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(79,140,255,.18); }
+    .bell { position: relative; cursor: pointer; background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 8px 10px; font-size: 16px; }
+    .bell .badge {
+      position: absolute; top: -6px; right: -6px; background: var(--red); color: #fff;
+      border-radius: 999px; font-size: 11px; min-width: 18px; height: 18px; line-height: 18px; text-align: center; padding: 0 4px;
+      display: none;
+    }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 18px; }
+    .card h2 { margin: 0 0 4px; font-size: 16px; }
+    .card .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+
+    /* Mock video session strip */
+    .video {
+      display: flex; align-items: center; justify-content: space-between;
+      background: linear-gradient(135deg, #1c2740, #141b2b);
+      border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 18px;
+    }
+    .video .who { display: flex; align-items: center; gap: 12px; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; background: #2f3d5c; display: grid; place-items: center; font-weight: 700; }
+    .vid-status { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 1.6s infinite; }
+    .vid-status.paused .live-dot { background: var(--amber); }
+
+    label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+    input[type=text] {
+      width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
+      background: var(--panel-2); color: var(--text); font-size: 14px;
+    }
+    .row { display: flex; gap: 14px; }
+    .row > div { flex: 1; }
+
+    button {
+      font: inherit; cursor: pointer; border: none; border-radius: 10px; padding: 11px 16px; font-weight: 600;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-press); }
+    .btn-primary:disabled { background: #35405a; color: var(--muted); cursor: not-allowed; }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+    .btn-ghost:hover { background: var(--panel-2); }
+    .btn-danger { background: rgba(255,107,107,.14); color: var(--red); border: 1px solid rgba(255,107,107,.4); }
+    .btn-danger:hover { background: rgba(255,107,107,.22); }
+    .btn-row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+
+    .hidden { display: none !important; }
+
+    /* Live call panel */
+    .phase { font-size: 20px; font-weight: 700; margin: 2px 0 4px; }
+    .phase-msg { color: var(--muted); font-size: 14px; min-height: 20px; }
+    .timer { font-variant-numeric: tabular-nums; font-size: 34px; font-weight: 700; letter-spacing: 1px; margin: 14px 0 6px; }
+    .timer.dim { color: var(--muted); }
+
+    .parties { display: flex; gap: 14px; margin: 16px 0; }
+    .party {
+      flex: 1; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .party .name { font-weight: 600; }
+    .party .role { color: var(--muted); font-size: 12px; }
+    .pill {
+      font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 999px; white-space: nowrap;
+      background: rgba(107,118,136,.2); color: var(--gray);
+    }
+    .pill.ringing { background: rgba(255,200,87,.16); color: var(--amber); }
+    .pill.ringing::before { content: "● "; animation: pulse 1.2s infinite; }
+    .pill.connected { background: rgba(61,220,151,.16); color: var(--green); }
+    .pill.declined, .pill.no_answer, .pill.failed { background: rgba(255,107,107,.16); color: var(--red); }
+
+    .banner { border-radius: 12px; padding: 14px 16px; margin: 6px 0 0; font-size: 14px; }
+    .banner.declined { background: rgba(255,107,107,.12); border: 1px solid rgba(255,107,107,.4); color: #ffd0d0; }
+    .banner.ok { background: rgba(61,220,151,.1); border: 1px solid rgba(61,220,151,.35); color: #c8f7e3; }
+
+    /* Summary */
+    .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; margin: 12px 0; }
+    .kv .k { color: var(--muted); font-size: 12px; }
+    .kv .v { font-weight: 600; }
+    .check { color: var(--green); }
+    .cross { color: var(--muted); }
+
+    /* Event log */
+    .log { max-height: 260px; overflow-y: auto; margin-top: 6px; }
+    .log-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+    .log-item:last-child { border-bottom: none; }
+    .log-item .t { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .log-item .m { flex: 1; }
+    .tag { font-size: 10px; text-transform: uppercase; letter-spacing: .4px; padding: 2px 6px; border-radius: 6px; background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
+    .tag.provider { color: var(--accent); }
+    .tag.client { color: var(--amber); }
+
+    /* Transcript */
+    .line { padding: 6px 0; font-size: 14px; }
+    .line .sp { font-weight: 700; margin-right: 6px; }
+    .line .sp.A { color: var(--accent); }
+    .line .sp.B { color: var(--amber); }
+
+    /* Modal */
+    .overlay { position: fixed; inset: 0; background: rgba(6,10,18,.66); display: grid; place-items: center; padding: 20px; z-index: 50; }
+    .modal { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); max-width: 460px; width: 100%; padding: 22px; }
+    .modal h3 { margin: 0 0 10px; }
+    .modal p { color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; background: var(--panel); border: 1px solid var(--accent);
+      border-radius: 12px; padding: 14px 16px; max-width: 320px; z-index: 60; box-shadow: 0 12px 40px rgba(0,0,0,.4);
+      animation: slidein .3s ease;
+    }
+    .toast .tt { font-weight: 700; margin-bottom: 3px; }
+    .toast .tb { color: var(--muted); font-size: 13px; }
+
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    @keyframes slidein { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+    .err { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 16px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand"><span class="dot"></span> Call Connect</div>
+      <button class="bell" id="bell" title="Notifications">🔔<span class="badge" id="bellBadge">0</span></button>
+    </header>
+
+    <!-- Mock video session context -->
+    <div class="video">
+      <div class="who">
+        <div class="avatar" id="clientAvatar">C</div>
+        <div>
+          <div style="font-weight:600">Client session</div>
+          <div class="role" style="color:var(--muted);font-size:12px">Appointment #A-1042</div>
+        </div>
+      </div>
+      <div class="vid-status" id="vidStatus"><span class="live-dot"></span> Video connected</div>
+    </div>
+
+    <!-- Setup card: enter numbers + Contact client -->
+    <div class="card" id="setupCard">
+      <h2>Contact client</h2>
+      <div class="sub">The client hasn't joined / the connection is unstable. Reach them by phone — both numbers stay masked.</div>
+      <div class="row">
+        <div>
+          <label for="provider">Your phone (provider)</label>
+          <input type="text" id="provider" placeholder="+15551230001" autocomplete="off" />
+        </div>
+        <div>
+          <label for="client">Client phone</label>
+          <input type="text" id="client" placeholder="+15551230002" autocomplete="off" />
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" id="contactBtn">📞 Contact client</button>
+      </div>
+      <div class="err" id="setupErr"></div>
+    </div>
+
+    <!-- Live call card -->
+    <div class="card hidden" id="callCard">
+      <div class="phase" id="phaseTitle">Calling…</div>
+      <div class="phase-msg" id="phaseMsg"></div>
+
+      <div class="timer dim" id="timer">00:00</div>
+
+      <div class="parties">
+        <div class="party">
+          <div><div class="name">You</div><div class="role">Provider</div></div>
+          <span class="pill" id="pillProvider">—</span>
+        </div>
+        <div class="party">
+          <div><div class="name">Client</div><div class="role">Masked call</div></div>
+          <span class="pill" id="pillClient">—</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-danger" id="cancelBtn">Cancel &amp; return to session</button>
+      </div>
+    </div>
+
+    <!-- Summary card -->
+    <div class="card hidden" id="summaryCard">
+      <h2 id="summaryTitle">Call summary</h2>
+      <div class="banner" id="summaryBanner"></div>
+      <div class="kv" id="summaryKv"></div>
+      <div class="btn-row">
+        <button class="btn-ghost" id="viewTranscriptBtn">View transcript</button>
+        <button class="btn-primary" id="newCallBtn">Return to session</button>
+      </div>
+    </div>
+
+    <!-- Transcript card -->
+    <div class="card hidden" id="transcriptCard">
+      <h2>Session transcript</h2>
+      <div class="sub" id="transcriptSub">Post-call, speaker-labeled.</div>
+      <div id="transcriptBody"></div>
+    </div>
+
+    <!-- Event log -->
+    <div class="card hidden" id="logCard">
+      <h2>Activity log</h2>
+      <div class="sub">Timestamped log of every phone event in this session.</div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <!-- Cancel confirm modal -->
+  <div class="overlay hidden" id="cancelOverlay">
+    <div class="modal">
+      <h3>Cancel this call?</h3>
+      <p>This will drop the connecting call and return you to the video session. Are you sure?</p>
+      <div class="btn-row">
+        <button class="btn-danger" id="cancelConfirm">Yes, cancel call</button>
+        <button class="btn-ghost" id="cancelDismiss">Keep connecting</button>
+      </div>
+      <div class="err" id="cancelErr"></div>
+    </div>
+  </div>
+
+  <script>
+    // ---- tiny helpers -------------------------------------------------------
+    const $ = (id) => document.getElementById(id);
+    async function api(method, path, body) {
+      const res = await fetch(path, {
+        method,
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      return data;
+    }
+    const fmt = (secs) => {
+      const s = Math.max(0, secs | 0);
+      const m = Math.floor(s / 60), r = s % 60;
+      return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+    };
+    const time = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+    // ---- state --------------------------------------------------------------
+    let sessionId = null;
+    let statusTimer = null;   // polls /status + /events while active
+    let tickTimer = null;     // 1s local clock while connected
+    let connectedAtMs = null;
+
+    const PILL_LABEL = {
+      idle: "—", waiting: "Waiting", ringing: "Ringing…", connected: "Connected",
+      ended: "Ended", declined: "Declined", no_answer: "No answer", failed: "Failed", canceled: "Canceled",
+    };
+    const PHASE_TITLE = {
+      starting: "Starting call…", contacting_provider: "Calling you…",
+      contacting_client: "Ringing your client…", connected: "Call in progress",
+      ended: "Call ended", client_declined: "Client declined the call",
+      canceled: "Call canceled", failed: "Call couldn't connect",
+    };
+    const pillClass = (s) => "pill " + (["ringing","connected","declined","no_answer","failed"].includes(s) ? s : "");
+
+    // ---- Contact client → place the call -----------------------------------
+    $("contactBtn").addEventListener("click", async () => {
+      $("setupErr").textContent = "";
+      const partyA = $("provider").value.trim();
+      const partyB = $("client").value.trim();
+      if (!partyA || !partyB) { $("setupErr").textContent = "Enter both phone numbers (E.164, e.g. +15551230001)."; return; }
+      try {
+        const { sessionId: id } = await api("POST", "/connect", { partyA, partyB });
+        sessionId = id;
+        setVideoPaused(true);
+        show("callCard"); show("logCard"); hide("setupCard");
+        hide("summaryCard"); hide("transcriptCard");
+        startPolling();
+      } catch (e) { $("setupErr").textContent = e.message; }
+    });
+
+    // ---- Cancel / leave -----------------------------------------------------
+    $("cancelBtn").addEventListener("click", () => { $("cancelErr").textContent = ""; show("cancelOverlay"); });
+    $("cancelDismiss").addEventListener("click", () => hide("cancelOverlay"));
+    $("cancelConfirm").addEventListener("click", async () => {
+      try {
+        await api("POST", `/sessions/${sessionId}/cancel`, { confirm: true });
+        hide("cancelOverlay");
+        // status poll will pick up the terminal state and render the summary
+      } catch (e) { $("cancelErr").textContent = e.message; }
+    });
+
+    $("newCallBtn").addEventListener("click", resetToSetup);
+
+    // ---- polling ------------------------------------------------------------
+    function startPolling() {
+      stopPolling();
+      poll();
+      statusTimer = setInterval(poll, 1500);
+    }
+    function stopPolling() {
+      if (statusTimer) clearInterval(statusTimer); statusTimer = null;
+      if (tickTimer) clearInterval(tickTimer); tickTimer = null;
+    }
+
+    async function poll() {
+      if (!sessionId) return;
+      try {
+        const s = await api("GET", `/sessions/${sessionId}/status`);
+        renderStatus(s);
+        renderLog(await api("GET", `/sessions/${sessionId}/events`));
+        if (!s.active) { stopPolling(); onCallEnded(s); }
+      } catch (e) { /* transient; keep polling */ }
+    }
+
+    function renderStatus(s) {
+      $("phaseTitle").textContent = PHASE_TITLE[s.phase] || s.phase;
+      $("phaseMsg").textContent = s.message || "";
+
+      const p = s.parties.provider.state, c = s.parties.client.state;
+      $("pillProvider").className = pillClass(p); $("pillProvider").textContent = PILL_LABEL[p] || p;
+      $("pillClient").className = pillClass(c); $("pillClient").textContent = PILL_LABEL[c] || c;
+
+      // timer
+      if (s.connectedAt) {
+        connectedAtMs = new Date(s.connectedAt).getTime();
+        $("timer").classList.remove("dim");
+        if (s.active && !tickTimer) tickTimer = setInterval(tick, 1000);
+        if (!s.active) { if (tickTimer) { clearInterval(tickTimer); tickTimer = null; } $("timer").textContent = fmt(s.durationSeconds || 0); }
+        else tick();
+      } else {
+        $("timer").classList.add("dim");
+        $("timer").textContent = "00:00";
+      }
+    }
+    function tick() { if (connectedAtMs) $("timer").textContent = fmt((Date.now() - connectedAtMs) / 1000); }
+
+    function renderLog(events) {
+      $("log").innerHTML = events.map((e) =>
+        `<div class="log-item"><span class="t">${time(e.at)}</span>` +
+        `<span class="m">${escapeHtml(e.message || e.type)}</span>` +
+        `<span class="tag ${e.party || ""}">${e.party || "system"}</span></div>`
+      ).reverse().join("");
+    }
+
+    // ---- end of call → summary ---------------------------------------------
+    async function onCallEnded(status) {
+      const sum = await api("GET", `/sessions/${sessionId}/summary`);
+      const declined = status.phase === "client_declined";
+      const canceled = status.phase === "canceled";
+      const ok = sum.outcome === "completed";
+
+      $("summaryTitle").textContent = PHASE_TITLE[status.phase] || "Call summary";
+      const banner = $("summaryBanner");
+      banner.className = "banner " + (declined || status.phase === "failed" ? "declined" : "ok");
+      banner.textContent = status.message || sum.message;
+
+      const rec = sum.documented.recorded, tr = sum.documented.transcribed;
+      $("summaryKv").innerHTML = `
+        <div><div class="k">Outcome</div><div class="v">${labelOutcome(sum.outcome, sum.endReason)}</div></div>
+        <div><div class="k">Duration</div><div class="v">${sum.durationSeconds != null ? fmt(sum.durationSeconds) : "—"}</div></div>
+        <div><div class="k">Recorded</div><div class="v ${rec ? "check" : "cross"}">${rec ? "✓ Yes" : "Pending"}</div></div>
+        <div><div class="k">Transcript</div><div class="v ${tr ? "check" : "cross"}">${tr ? "✓ Ready" : "Processing…"}</div></div>
+        <div><div class="k">Events logged</div><div class="v">${sum.eventCount}</div></div>`;
+
+      hide("callCard"); show("summaryCard");
+      setVideoPaused(false);
+    }
+    function labelOutcome(outcome, reason) {
+      if (outcome === "completed") return "Completed";
+      if (outcome === "declined") return "Client declined";
+      if (outcome === "canceled") return "Canceled by you";
+      if (reason === "provider_no_answer") return "You didn't answer";
+      if (reason === "provider_voicemail") return "Your voicemail answered";
+      return "Not connected";
+    }
+
+    // ---- transcript ---------------------------------------------------------
+    $("viewTranscriptBtn").addEventListener("click", async () => {
+      const sess = await api("GET", `/sessions/${sessionId}`);
+      const lines = sess.ciTranscript || [];
+      $("transcriptBody").innerHTML = lines.length
+        ? lines.map((l) => `<div class="line"><span class="sp ${l.speaker}">${l.speaker === "A" ? "Provider" : "Client"}:</span>${escapeHtml(l.text)}</div>`).join("")
+        : `<div class="sub">Transcript isn't ready yet. You'll get a notification when it finishes processing.</div>`;
+      $("transcriptSub").textContent = lines.length ? "Phone segment, speaker-labeled." : "";
+      show("transcriptCard");
+    });
+
+    // ---- notifications ------------------------------------------------------
+    let knownNotif = new Set();
+    async function pollNotifications() {
+      try {
+        const list = await api("GET", "/notifications");
+        const unread = list.filter((n) => !n.read);
+        const badge = $("bellBadge");
+        badge.textContent = unread.length;
+        badge.style.display = unread.length ? "block" : "none";
+        for (const n of unread) {
+          if (!knownNotif.has(n.id)) { knownNotif.add(n.id); toast(n.title, n.body); }
+        }
+      } catch (e) { /* ignore */ }
+    }
+    $("bell").addEventListener("click", async () => {
+      const list = await api("GET", "/notifications?unread=true");
+      for (const n of list) await api("POST", `/notifications/${n.id}/read`);
+      pollNotifications();
+    });
+    function toast(title, body) {
+      const t = document.createElement("div");
+      t.className = "toast";
+      t.innerHTML = `<div class="tt">🔔 ${escapeHtml(title)}</div><div class="tb">${escapeHtml(body)}</div>`;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 6000);
+    }
+
+    // ---- misc ---------------------------------------------------------------
+    function resetToSetup() {
+      stopPolling(); sessionId = null; connectedAtMs = null;
+      show("setupCard"); hide("callCard"); hide("summaryCard"); hide("transcriptCard"); hide("logCard");
+      setVideoPaused(false);
+    }
+    function setVideoPaused(paused) {
+      const el = $("vidStatus");
+      el.classList.toggle("paused", paused);
+      el.childNodes[1].textContent = paused ? " Video paused — on phone call" : " Video connected";
+    }
+    const show = (id) => $(id).classList.remove("hidden");
+    const hide = (id) => $(id).classList.add("hidden");
+    function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+    setInterval(pollNotifications, 3000);
+    pollNotifications();
+  </script>
+</body>
+</html>

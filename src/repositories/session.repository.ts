@@ -10,12 +10,17 @@ export type SessionUpdate = Partial<{
   recordingSid: string | null;
   transcriptSid: string | null;
   ciTranscript: CiTranscriptLine[];
+  connectedAt: Date | null;
+  endedAt: Date | null;
+  endReason: string | null;
 }>;
 
 const RELATED = [
   { association: "calls", required: false },
   { association: "recording", required: false },
   { association: "transcript", required: false },
+  { association: "events", required: false },
+  { association: "notifications", required: false },
 ];
 
 export function createSession(options: {

@@ -49,6 +49,15 @@ export function createOutboundCall(options: {
 }
 
 /**
+ * Hang up a live call by completing it. Used when the provider cancels a
+ * connecting call or leaves an in-progress one. Twilio ignores this for calls that
+ * have already ended, so it's safe to call defensively.
+ */
+export function hangupCall(callSid: string) {
+  return client.calls(callSid).update({ status: "completed" });
+}
+
+/**
  * Kick off post-call transcription of a dual-channel recording via Conversation
  * Intelligence. `customerKey` is echoed back to the completion webhook so we can
  * correlate the finished transcript with its session.

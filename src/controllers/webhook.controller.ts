@@ -17,6 +17,18 @@ export async function bridge(req: Request, res: Response): Promise<void> {
   res.type("text/xml").send(twiml);
 }
 
+/**
+ * Per-leg lifecycle of the client (B) call — tells us when the client is ringing vs.
+ * answered, so we can show which party we're waiting on and detect "both connected".
+ */
+export async function partyBStatus(req: Request, res: Response): Promise<void> {
+  const sessionId = req.query.sessionId as string;
+  const status = req.body.CallStatus as string;
+  const callSid = req.body.CallSid as string | undefined; // the B (child) leg
+  await callService.handlePartyBStatus(sessionId, status, callSid);
+  res.sendStatus(204);
+}
+
 /** The <Dial> to B finished — record the B leg and handle "B didn't answer". */
 export async function dialStatus(req: Request, res: Response): Promise<void> {
   const sessionId = req.query.sessionId as string;

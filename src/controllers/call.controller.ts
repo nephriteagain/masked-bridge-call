@@ -4,11 +4,11 @@ import * as callService from "../services/call.service.js";
 
 /**
  * POST /connect  { partyA, partyB }
- * Starts a connection between two real numbers. Places the outbound call to A.
- * A sees TWILIO_NUMBER, not B.
+ * Starts a Call Connect call: creates the session and places the outbound call to the
+ * provider (A). partyA is the provider, partyB is the client; both numbers stay masked.
  */
 export async function connect(req: Request, res: Response): Promise<void> {
   const { partyA, partyB } = (req.body || {}) as { partyA?: string; partyB?: string };
   const result = await callService.initiateConnection({ partyA, partyB });
-  res.json(result);
+  res.status(201).json(result);
 }

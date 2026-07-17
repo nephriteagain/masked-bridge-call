@@ -82,3 +82,11 @@ export function createTranscript(options: {
 export function listTranscriptSentences(transcriptSid: string) {
   return client.intelligence.v2.transcripts(transcriptSid).sentences.list();
 }
+
+/**
+ * Fetch a Conversation Intelligence transcript's metadata (status, duration,
+ * channels, timestamps) straight from Twilio — for inspection/debugging.
+ */
+export function fetchTranscript(transcriptSid: string) {
+  return client.intelligence.v2.transcripts(transcriptSid).fetch();
+}

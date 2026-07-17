@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import * as webhookController from "../controllers/webhook.controller.js";
 import { verifyTwilioSignature } from "../middleware/twilio-signature.middleware.js";
+import { logWebhookEvent } from "../middleware/webhook-logger.middleware.js";
 import { asyncHandler } from "../middleware/async-handler.js";
 
 /**
@@ -11,6 +12,8 @@ import { asyncHandler } from "../middleware/async-handler.js";
  */
 export const webhookRouter = Router();
 
+// Log every inbound event first, so even signature-rejected requests are recorded.
+webhookRouter.use(logWebhookEvent);
 webhookRouter.use(verifyTwilioSignature);
 
 webhookRouter.post("/bridge", asyncHandler(webhookController.bridge));
